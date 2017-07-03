@@ -33,6 +33,9 @@ This is a tool to help converting code that uses <pm:Log::Any> to use
     use Log::Any;
     use Log::Any '$log';
 
+    use Log::Any::IfLOG;
+    use Log::Any::IfLOG '$log';
+
 to:
 
     use Log::ger;
@@ -45,7 +48,7 @@ It converts:
 to:
 
     log_warn("blah");
-    log_warn("blah", "more blah"); # XXX this does not work and needs to be converted to e.g. log_warn(join(" ", "blah", "more blah"));
+    log_warn("blah", "more blah"); # XXX this actually does not work and needs to be converted to e.g. log_warn(join(" ", "blah", "more blah"));
 
 It converts:
 
@@ -77,6 +80,7 @@ sub convert_log_any_to_log_ger {
     my %args = @_;
 
     my $doc = PPI::Document->new(\$args{input});
+    my $envres;
     my $res = $doc->find(
         sub {
             my ($top, $el) = @_;
@@ -90,6 +94,10 @@ sub convert_log_any_to_log_ger {
                     if ($c1->content eq ' ') {
                         my $c2 = $c1->next_sibling;
                         if ($c2->content =~ /\A(Log::Any::IfLOG|Log::Any)\z/) {
+                            if ($args{_detect}) {
+                                $envres = [200, "OK", 1, {'cmdline.result'=>'', 'cmdline.exit_code' => 1}];
+                                goto RETURN_ENVRES;
+                            }
                             $c2->insert_before(PPI::Token::Word->new("Log::ger"));
                             my $remove_cs;
                             my $cs = $c2;
@@ -172,7 +180,37 @@ sub convert_log_any_to_log_ger {
     );
     die "BUG: find() dies: $@!" unless defined($res);
 
-    [200, "OK", $doc->serialize];
+    if ($args{_detect}) {
+        $envres = [200, "OK", 0, {'cmdline.result'=>'', 'cmdline.exit_code' => 0}];
+        goto RETURN_ENVRES;
+    }
+
+    $envres = [200, "OK", $doc->serialize];
+
+  RETURN_ENVRES:
+    $envres;
+}
+
+$SPEC{detect_log_any_usage} = {
+    v => 1.1,
+    summary => 'Detect whether code uses Log::Any',
+    description => <<'_',
+
+The CLI will return exit code 1 when usage of Log::Any is detected. It will
+return 0 otherwise.
+
+_
+    args => {
+        input => {
+            schema => 'str*',
+            req => 1,
+            pos => 0,
+            cmdline_src => 'stdin_or_files',
+        },
+    },
+};
+sub detect_log_any_usage {
+    convert_log_any_to_log_ger(@_, _detect=>1);
 }
 
 1;
