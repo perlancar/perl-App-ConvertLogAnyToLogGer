@@ -89,7 +89,7 @@ sub convert_log_any_to_log_ger {
                     my $c1 = $c0->next_sibling;
                     if ($c1->content eq ' ') {
                         my $c2 = $c1->next_sibling;
-                        if ($c2->content eq 'Log::Any') {
+                        if ($c2->content =~ /\A(Log::Any::IfLOG|Log::Any)\z/) {
                             $c2->insert_before(PPI::Token::Word->new("Log::ger"));
                             my $remove_cs;
                             my $cs = $c2;
